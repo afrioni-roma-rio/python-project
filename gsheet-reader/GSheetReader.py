@@ -2,6 +2,7 @@ import gspread
 import psycopg2
 import pymysql
 import yaml
+import dateutil.parser as dparser
 from sqlalchemy import create_engine
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -22,13 +23,14 @@ class GSheetReader:
         
         df = pd.DataFrame(filtered_data, columns=header_row)
         
-        # Convert columns with date/time values to standard datetime format
+        # Convert columns with datetime-like values to standard datetime format
         for col in df.columns:
             if df[col].dtype == 'object':  # Check if the column contains strings
                 try:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].apply(lambda x: dparser.parse(x, fuzzy=True) if isinstance(x, str) else x)
                 except ValueError:
                     pass
+
         return df
     
     def save_to_csv(self, df, filename):
@@ -99,9 +101,7 @@ class GSheetToDatabase:
         Returns:
             None
         """
-        full_table_name = f"{schema_name}.{table_name}"
-
-        df.to_sql(full_table_name, self.engine, if_exists=insert_type, index=False)
-        print("Data saved to database table:", full_table_name)
+        df.to_sql(table_name , self.engine, schema=schema_name, if_exists=insert_type, index=False)
+        print("Data saved to database table:", f"{schema_name}.{table_name}")
 
 
